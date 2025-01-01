@@ -52,7 +52,8 @@ public class Controller {
      * @param studentId    The ID of the student renting the instrument.
      * @param instrumentId The ID of the instrument to rent.
      * @param rentalPriceId The ID of the rental price to apply.
-     * @throws InstrumentException If unable to rent the instrument or student has reached rental limit.
+     * @throws InstrumentException If unable to rent the instrument (e.g., database trigger
+ *      detects rule violations or an error occurs in the DAO).
      */
     public void rentInstrument(int studentId, String instrumentId, String rentalPriceId) throws InstrumentException {
         String failureMsg = "Could not rent instrument with ID: " + instrumentId + " for student: " + studentId;
@@ -62,13 +63,8 @@ public class Controller {
         }
 
         try {
-            // Check student's current rental count in the controller before proceeding
-            int rentalCount = instrumentDAO.findRentalCountByStudent(studentId);
-            if (rentalCount >= 2) {
-                throw new InstrumentException("Student " + studentId + " has reached the rental limit.");
-            }
-
-            // If limit not exceeded, proceed to create rental
+           // Delegates the rental creation to the DAO. 
+           // Database trigger ensures rental rules (e.g., max active rentals) are enforced.
             instrumentDAO.createRentalOnInstrument(studentId, instrumentId, rentalPriceId);
         } catch (InstrumentDBException e) {
             throw new InstrumentException(failureMsg, e);

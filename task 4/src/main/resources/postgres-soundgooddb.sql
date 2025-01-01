@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS check_student_rental_limit CASCADE;
 DROP TABLE IF EXISTS person CASCADE;
 DROP TABLE IF EXISTS instrument_rental CASCADE;
 DROP TABLE IF EXISTS rental_price_history CASCADE;
@@ -66,6 +67,35 @@ CREATE TABLE instrument_rental (
     FOREIGN KEY (instrument_id) REFERENCES instrument(instrument_id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES student(student_id) ON DELETE CASCADE
 );
+--the trigger and function
+CREATE OR REPLACE FUNCTION check_student_rental_limit()
+RETURNS TRIGGER AS $$
+DECLARE
+    active_rentals INT;
+BEGIN
+    -- Count active rentals for the student
+    SELECT COUNT(*) INTO active_rentals
+    FROM instrument_rental
+    WHERE student_id = NEW.student_id
+      AND lease_expiry_time > NOW();
+
+    -- Get the maximum rentals allowed from system configuration
+    IF active_rentals >= (
+        SELECT config_value 
+        FROM system_config 
+        WHERE config_type = 'max_active_rentals_per_student'
+    ) THEN
+        RAISE EXCEPTION 'Student % has exceeded the maximum allowed active rentals.', NEW.student_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER enforce_student_rental_limit
+BEFORE INSERT ON instrument_rental
+FOR EACH ROW
+EXECUTE FUNCTION check_student_rental_limit();
 
 
 -- Insert data into person table (studenter)

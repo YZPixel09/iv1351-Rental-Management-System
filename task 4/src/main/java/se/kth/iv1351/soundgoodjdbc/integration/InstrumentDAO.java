@@ -120,11 +120,10 @@ public class InstrumentDAO {
     public List<InstrumentDTO> findAvailableInstruments(String type) throws InstrumentDBException {
         String failureMsg = "Failed to find available instruments of type: " + type;
         ResultSet result = null;
-
+        List<InstrumentDTO> instruments = new ArrayList<>();
         try {
             findAvailableInstrumentsStmt.setString(1, type);
             result = findAvailableInstrumentsStmt.executeQuery();
-            List<InstrumentDTO> instruments = new ArrayList<>();
             while (result.next()) {
                 instruments.add(new Instrument(
                     result.getString(INSTRUMENT_ID),
@@ -134,15 +133,15 @@ public class InstrumentDAO {
                     result.getInt(AVAILABLE_STOCK)
                 ));
             }
-            return instruments;
+            connection.commit();
         } catch (SQLException sqle) {
             handleException(failureMsg, sqle);
-            return null;
         } finally {
             if (result != null) {
                 closeResultSet(failureMsg, result);
             }
         }
+        return instruments;
     }
 
     /**
@@ -151,21 +150,22 @@ public class InstrumentDAO {
     public int findRentalCountByStudent(int studentId) throws InstrumentDBException {
         String failureMsg = "Failed to find rental count for student: " + studentId;
         ResultSet rs = null;
+        int rentalCount = 0;
         try {
             findRentalCountByStudentStmt.setInt(1, studentId);
             rs = findRentalCountByStudentStmt.executeQuery();
             if (rs.next()) {
                 return rs.getInt("rental_count");
             }
-            return 0;
+            connection.commit();
         } catch (SQLException sqle) {
             handleException(failureMsg, sqle);
-            return 0; // Unreachable
         } finally {
             if (rs != null) {
                 closeResultSet(failureMsg, rs);
             }
         }
+        return rentalCount;
     }
 
     /**
@@ -175,8 +175,6 @@ public class InstrumentDAO {
         String failureMsg = "Failed to rent instrument: " + instrumentId + " for student: " + studentId;
 
         try {
-            connection.setAutoCommit(false);
-
             // Check instrument availability and lock the row
             findAvailableInstrumentByIdLockingForUpdateStmt.setString(1, instrumentId);
             try (ResultSet rs = findAvailableInstrumentByIdLockingForUpdateStmt.executeQuery()) {
@@ -196,15 +194,10 @@ public class InstrumentDAO {
             decreaseInstrumentStockStmt.setString(1, instrumentId);
             decreaseInstrumentStockStmt.executeUpdate();
 
-            commit();
+            connection.commit();
+
         } catch (SQLException sqle) {
             handleException(failureMsg, sqle);
-        } finally {
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException e) {
-                throw new InstrumentDBException("Failed to reset auto-commit", e);
-            }
         }
     }
 
@@ -215,8 +208,6 @@ public class InstrumentDAO {
         String failureMsg = "Failed to terminate rental: " + rentalId;
 
         try {
-            connection.setAutoCommit(false);
-
             // Update rental record to terminate
             updateRentalExpiryStmt.setString(1, rentalId);
             updateRentalExpiryStmt.executeUpdate();
@@ -224,16 +215,10 @@ public class InstrumentDAO {
             // Update instrument stock after rental termination
             updateInstrumentStockAfterRentalStmt.setString(1, rentalId);
             updateInstrumentStockAfterRentalStmt.executeUpdate();
-
-            commit();
-        } catch (SQLException e) {
-            handleException(failureMsg, e);
-        } finally {
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException e) {
-                throw new InstrumentDBException("Failed to reset auto-commit", e);
-            }
+   
+            connection.commit();
+        } catch (SQLException sqle) {
+            handleException(failureMsg, sqle);
         }
     }
 
@@ -243,12 +228,12 @@ public class InstrumentDAO {
     public List<String> findRentalsByStudent(int studentId) throws InstrumentDBException {
         String failureMsg = "Failed to find rentals for student: " + studentId;
         ResultSet result = null;
-
+        List<String> rentals = new ArrayList<>();
         try {
             findRentalsByStudentStmt.setInt(1, studentId);
             result = findRentalsByStudentStmt.executeQuery();
 
-            List<String> rentals = new ArrayList<>();
+           
             while (result.next()) {
                 String status = result.getTimestamp(LEASE_EXPIRY_TIME).after(new Timestamp(System.currentTimeMillis())) ? "Active" : "Terminated";
                 rentals.add("Rental ID: " + result.getString(RENTAL_ID) +
@@ -256,17 +241,16 @@ public class InstrumentDAO {
                             ", Status: " + status);
             }
 
-            return rentals;
+            connection.commit();
         } catch (SQLException e) {
             handleException(failureMsg, e);
-            return null; // Unreachable
         } finally {
             if (result != null) {
                 closeResultSet(failureMsg, result);
             }
         }
+        return rentals;
     }
-
     /**
      * Handles exceptions and rolls back transactions.
      */
@@ -293,7 +277,7 @@ public class InstrumentDAO {
     /**
      * Commits the transaction.
      */
-    private void commit() throws InstrumentDBException {
+    public void commit() throws InstrumentDBException {
         try {
             connection.commit();
         } catch (SQLException e) {
