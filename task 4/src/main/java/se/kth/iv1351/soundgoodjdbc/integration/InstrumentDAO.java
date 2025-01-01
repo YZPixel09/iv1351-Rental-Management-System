@@ -33,11 +33,11 @@ public class InstrumentDAO {
     private Connection connection;
 
     // Prepared statements
-    private PreparedStatement findAvailableInstrumentsStmt;
+    private PreparedStatement findAvailableInstrumentsStmtLockingForUpdate;
     private PreparedStatement createRentalStmt;
     private PreparedStatement findRentalCountByStudentStmt;
     private PreparedStatement updateRentalExpiryStmt;
-    private PreparedStatement findRentalsByStudentStmt;
+    private PreparedStatement findRentalsByStudentStmtLockingForUpdate;
 
     /**
      * Creates a new DAO instance.
@@ -65,14 +65,15 @@ public class InstrumentDAO {
      * Prepares all SQL statements.
      */
     private void prepareStatements() throws SQLException {
-        findAvailableInstrumentsStmt = connection.prepareStatement(
+        findAvailableInstrumentsStmtLockingForUpdate = connection.prepareStatement(
             "SELECT i." + INSTRUMENT_ID + ", i." + INSTRUMENT_TYPE + ", i." + INSTRUMENT_BRAND +
             ", rph." + PRICE + ", i." + AVAILABLE_STOCK +
             " FROM " + INSTRUMENT_TABLE + " i " +
             "JOIN " + RENTAL_PRICE_HISTORY_TABLE + " rph ON i." + INSTRUMENT_ID + " = rph." + INSTRUMENT_ID +
-            " WHERE i." + INSTRUMENT_TYPE + " = ? AND i." + AVAILABLE_STOCK + " > 0 AND rph." + IS_CURRENT + " = TRUE"
+            " WHERE i." + INSTRUMENT_TYPE + " = ? AND i." + AVAILABLE_STOCK + " > 0 AND rph." + IS_CURRENT + " = TRUE" +
+            "FOR NO KEY UPDATE"
         );
-
+        
 
         findRentalCountByStudentStmt = connection.prepareStatement(
             "SELECT COUNT(*) AS rental_count FROM " + INSTRUMENT_RENTAL_TABLE +
@@ -90,9 +91,9 @@ public class InstrumentDAO {
             "UPDATE " + INSTRUMENT_RENTAL_TABLE + " SET " + LEASE_EXPIRY_TIME + " = NOW() WHERE " + RENTAL_ID + " = ?"
         );
 
-        findRentalsByStudentStmt = connection.prepareStatement(
+        findRentalsByStudentStmtLockingForUpdate = connection.prepareStatement(
             "SELECT " + RENTAL_ID + ", " + INSTRUMENT_ID + ", " + LEASE_EXPIRY_TIME +
-            " FROM " + INSTRUMENT_RENTAL_TABLE + " WHERE " + STUDENT_ID + " = ?"
+            " FROM " + INSTRUMENT_RENTAL_TABLE + " WHERE " + STUDENT_ID + " = ? FOR NO KEY UPDATE"
         );
     }
 
@@ -104,8 +105,8 @@ public class InstrumentDAO {
         ResultSet result = null;
         List<InstrumentDTO> instruments = new ArrayList<>();
         try {
-            findAvailableInstrumentsStmt.setString(1, type);
-            result = findAvailableInstrumentsStmt.executeQuery();
+            findAvailableInstrumentsStmtLockingForUpdate.setString(1, type);
+            result = findAvailableInstrumentsStmtLockingForUpdate.executeQuery();
             while (result.next()) {
                 instruments.add(new Instrument(
                     result.getString(INSTRUMENT_ID),
@@ -196,8 +197,8 @@ public class InstrumentDAO {
         ResultSet result = null;
         List<String> rentals = new ArrayList<>();
         try {
-            findRentalsByStudentStmt.setInt(1, studentId);
-            result = findRentalsByStudentStmt.executeQuery();
+            findRentalsByStudentStmtLockingForUpdate.setInt(1, studentId);
+            result = findRentalsByStudentStmtLockingForUpdate.executeQuery();
 
            
             while (result.next()) {
