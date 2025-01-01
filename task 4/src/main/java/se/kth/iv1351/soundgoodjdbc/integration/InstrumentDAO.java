@@ -35,12 +35,9 @@ public class InstrumentDAO {
     // Prepared statements
     private PreparedStatement findAvailableInstrumentsStmt;
     private PreparedStatement createRentalStmt;
-    private PreparedStatement findAvailableInstrumentByIdLockingForUpdateStmt;
     private PreparedStatement findRentalCountByStudentStmt;
     private PreparedStatement updateRentalExpiryStmt;
-    private PreparedStatement updateInstrumentStockAfterRentalStmt;
     private PreparedStatement findRentalsByStudentStmt;
-    private PreparedStatement decreaseInstrumentStockStmt;
 
     /**
      * Creates a new DAO instance.
@@ -76,10 +73,6 @@ public class InstrumentDAO {
             " WHERE i." + INSTRUMENT_TYPE + " = ? AND i." + AVAILABLE_STOCK + " > 0 AND rph." + IS_CURRENT + " = TRUE"
         );
 
-        findAvailableInstrumentByIdLockingForUpdateStmt = connection.prepareStatement(
-            "SELECT " + AVAILABLE_STOCK + " FROM " + INSTRUMENT_TABLE +
-            " WHERE " + INSTRUMENT_ID + " = ? AND " + AVAILABLE_STOCK + " > 0 FOR NO KEY UPDATE"
-        );
 
         findRentalCountByStudentStmt = connection.prepareStatement(
             "SELECT COUNT(*) AS rental_count FROM " + INSTRUMENT_RENTAL_TABLE +
@@ -92,20 +85,9 @@ public class InstrumentDAO {
             "VALUES (?, NOW(), NOW() + INTERVAL '30 days', ?, ?, ?)"
         );
 
-         decreaseInstrumentStockStmt = connection.prepareStatement(
-           "UPDATE " + INSTRUMENT_TABLE + " SET " + AVAILABLE_STOCK + " = " + AVAILABLE_STOCK + " - 1 WHERE " + INSTRUMENT_ID + " = ?"
-        );
 
         updateRentalExpiryStmt = connection.prepareStatement(
             "UPDATE " + INSTRUMENT_RENTAL_TABLE + " SET " + LEASE_EXPIRY_TIME + " = NOW() WHERE " + RENTAL_ID + " = ?"
-        );
-
-        updateInstrumentStockAfterRentalStmt = connection.prepareStatement(
-            "UPDATE " + INSTRUMENT_TABLE +
-            " SET " + AVAILABLE_STOCK + " = " + AVAILABLE_STOCK + " + 1 " +
-            "WHERE " + INSTRUMENT_ID + " = (" +
-            "SELECT " + INSTRUMENT_ID + " FROM " + INSTRUMENT_RENTAL_TABLE +
-            " WHERE " + RENTAL_ID + " = ?)"
         );
 
         findRentalsByStudentStmt = connection.prepareStatement(
@@ -169,30 +151,18 @@ public class InstrumentDAO {
     }
 
     /**
-     * Creates a new rental record in the database after ensuring the instrument is available.
+     * Creates a new rental.
      */
     public void createRentalOnInstrument(int studentId, String instrumentId, String rentalPriceId) throws InstrumentDBException {
         String failureMsg = "Failed to rent instrument: " + instrumentId + " for student: " + studentId;
 
         try {
-            // Check instrument availability and lock the row
-            findAvailableInstrumentByIdLockingForUpdateStmt.setString(1, instrumentId);
-            try (ResultSet rs = findAvailableInstrumentByIdLockingForUpdateStmt.executeQuery()) {
-                if (!rs.next()) {
-                    throw new SQLException("Instrument is not available.");
-                }
-            }
-
             // Insert the new rental record
             createRentalStmt.setString(1, generateUniqueId());
             createRentalStmt.setString(2, rentalPriceId);
             createRentalStmt.setString(3, instrumentId);
             createRentalStmt.setInt(4, studentId);
             createRentalStmt.executeUpdate();
-
-            // Update instrument stock
-            decreaseInstrumentStockStmt.setString(1, instrumentId);
-            decreaseInstrumentStockStmt.executeUpdate();
 
             connection.commit();
 
@@ -202,7 +172,7 @@ public class InstrumentDAO {
     }
 
     /**
-     * Terminates a rental by updating its lease expiry time and the instrument's stock.
+     * Terminates a rental.
      */
     public void deleteRental(String rentalId) throws InstrumentDBException {
         String failureMsg = "Failed to terminate rental: " + rentalId;
@@ -211,10 +181,6 @@ public class InstrumentDAO {
             // Update rental record to terminate
             updateRentalExpiryStmt.setString(1, rentalId);
             updateRentalExpiryStmt.executeUpdate();
-
-            // Update instrument stock after rental termination
-            updateInstrumentStockAfterRentalStmt.setString(1, rentalId);
-            updateInstrumentStockAfterRentalStmt.executeUpdate();
    
             connection.commit();
         } catch (SQLException sqle) {
