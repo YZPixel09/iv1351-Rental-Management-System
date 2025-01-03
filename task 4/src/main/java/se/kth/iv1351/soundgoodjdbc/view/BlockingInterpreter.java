@@ -17,7 +17,7 @@ public class BlockingInterpreter {
 
     /**
      * Creates a new instance that will use the specified controller for all operations.
-     * 
+     *
      * @param ctrl The controller used by this instance.
      */
     public BlockingInterpreter(Controller ctrl) {
@@ -62,15 +62,30 @@ public class BlockingInterpreter {
                         }
                         break;
                     case 2: // Rent an instrument
-                        System.out.print("Enter student ID: ");
-                        int studentId = Integer.parseInt(readNextLine());
-                        System.out.print("Enter instrument ID: ");
-                        String instrumentId = readNextLine();
-                        System.out.print("Enter rental price ID: ");
-                        String rentalPriceId = readNextLine();
-                        ctrl.rentInstrument(studentId, instrumentId, rentalPriceId);
-                        System.out.println("Instrument rented successfully.");
-                        break;
+					    System.out.print("Enter student ID: ");
+					    int studentId = Integer.parseInt(readNextLine());
+					    System.out.print("Enter instrument ID: ");
+					    String instrumentId = readNextLine();
+					    System.out.print("Enter rental price ID: ");
+					    String rentalPriceId = readNextLine();
+					    System.out.print("Enter rental duration (in months, max 12): "); // Added
+					    int rentalDuration = Integer.parseInt(readNextLine());
+
+					    if (rentalDuration < 1 || rentalDuration > 12) {
+					        System.out.println("Invalid rental duration. Please enter a value between 1 and 12 months.");
+					        break;
+					    }
+
+					    try {
+					        ctrl.rentInstrument(studentId, instrumentId, rentalPriceId, rentalDuration); // Updated to include rentalDuration
+					        System.out.println("Instrument rented successfully for " + rentalDuration + " months.");
+					    } catch (Exception e) {
+					        System.out.println("Operation failed: " + e.getMessage());
+					        e.printStackTrace();
+					    }
+					    break;
+
+
                     case 3: // Terminate a rental
                         System.out.print("Enter rental ID: ");
                         String rentalId = readNextLine();

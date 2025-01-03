@@ -55,7 +55,7 @@ public class Controller {
      * @throws InstrumentException If unable to rent the instrument (e.g., database trigger
  *      detects rule violations or an error occurs in the DAO).
      */
-    public void rentInstrument(int studentId, String instrumentId, String rentalPriceId) throws InstrumentException {
+    public void rentInstrument(int studentId, String instrumentId, String rentalPriceId,int rentalDuration) throws InstrumentException {
         String failureMsg = "Could not rent instrument with ID: " + instrumentId + " for student: " + studentId;
 
         if (instrumentId == null || rentalPriceId == null) {
@@ -65,7 +65,7 @@ public class Controller {
         try {
            // Delegates the rental creation to the DAO. 
            // Database trigger ensures rental rules (e.g., max active rentals) are enforced.
-            instrumentDAO.createRentalOnInstrument(studentId, instrumentId, rentalPriceId);
+            instrumentDAO.createRentalOnInstrument(studentId, instrumentId, rentalPriceId,rentalDuration);
         } catch (InstrumentDBException e) {
             throw new InstrumentException(failureMsg, e);
         }

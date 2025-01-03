@@ -66,13 +66,14 @@ public class InstrumentDAO {
      */
     private void prepareStatements() throws SQLException {
         findAvailableInstrumentsStmtLockingForUpdate = connection.prepareStatement(
-            "SELECT i." + INSTRUMENT_ID + ", i." + INSTRUMENT_TYPE + ", i." + INSTRUMENT_BRAND +
-            ", rph." + PRICE + ", i." + AVAILABLE_STOCK +
-            " FROM " + INSTRUMENT_TABLE + " i " +
-            "JOIN " + RENTAL_PRICE_HISTORY_TABLE + " rph ON i." + INSTRUMENT_ID + " = rph." + INSTRUMENT_ID +
-            " WHERE i." + INSTRUMENT_TYPE + " = ? AND i." + AVAILABLE_STOCK + " > 0 AND rph." + IS_CURRENT + " = TRUE" +
-            "FOR NO KEY UPDATE"
-        );
+    "SELECT i." + INSTRUMENT_ID + ", i." + INSTRUMENT_TYPE + ", i." + INSTRUMENT_BRAND +
+    ", rph." + PRICE + ", i." + AVAILABLE_STOCK +
+    " FROM " + INSTRUMENT_TABLE + " i " +
+    "JOIN " + RENTAL_PRICE_HISTORY_TABLE + " rph ON i." + INSTRUMENT_ID + " = rph." + INSTRUMENT_ID +
+    " WHERE i." + INSTRUMENT_TYPE + " = ? AND i." + AVAILABLE_STOCK + " > 0 AND rph." + IS_CURRENT + " = TRUE " +
+    "FOR NO KEY UPDATE"
+       );
+
         
 
         findRentalCountByStudentStmt = connection.prepareStatement(
@@ -83,7 +84,7 @@ public class InstrumentDAO {
         createRentalStmt = connection.prepareStatement(
             "INSERT INTO " + INSTRUMENT_RENTAL_TABLE +
             " (" + RENTAL_ID + ", " + RENTAL_START_TIME + ", " + LEASE_EXPIRY_TIME + ", " + RENTAL_PRICE_ID + ", " + INSTRUMENT_ID + ", " + STUDENT_ID + ") " +
-            "VALUES (?, NOW(), NOW() + INTERVAL '30 days', ?, ?, ?)"
+            "VALUES (?, ?, ?, ?, ?, ?)"
         );
 
 
@@ -154,15 +155,17 @@ public class InstrumentDAO {
     /**
      * Creates a new rental.
      */
-    public void createRentalOnInstrument(int studentId, String instrumentId, String rentalPriceId) throws InstrumentDBException {
+    public void createRentalOnInstrument(int studentId, String instrumentId, String rentalPriceId,int rentalDuration) throws InstrumentDBException {
         String failureMsg = "Failed to rent instrument: " + instrumentId + " for student: " + studentId;
 
         try {
             // Insert the new rental record
             createRentalStmt.setString(1, generateUniqueId());
-            createRentalStmt.setString(2, rentalPriceId);
-            createRentalStmt.setString(3, instrumentId);
-            createRentalStmt.setInt(4, studentId);
+            createRentalStmt.setTimestamp(2, new Timestamp(System.currentTimeMillis())); // Current time
+            createRentalStmt.setTimestamp(3, new Timestamp(System.currentTimeMillis() + rentalDuration * 30L * 24 * 60 * 60 * 1000)); // Expiry time
+            createRentalStmt.setString(4, rentalPriceId);
+            createRentalStmt.setString(5, instrumentId);
+            createRentalStmt.setInt(6, studentId);
             createRentalStmt.executeUpdate();
 
             connection.commit();
